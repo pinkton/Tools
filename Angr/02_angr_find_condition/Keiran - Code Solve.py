@@ -1,4 +1,4 @@
-import angr, sys, os
+import angr, sys
 
 def main(argv):
     project = angr.Project(argv[1]) #Usage - script.py [binary]
@@ -11,8 +11,22 @@ def main(argv):
     #Binary manager for manipulating
     simulation = project.factory.simgr(initial_state)
 
-    #The hex address for the string output of "Good Job" aka correct password with "find" but also the hex address for an area we categorically don't want to go into with "avoid"
-    simulation.explore(find=0x4012AF,avoid=0x401262)
+    def looks_good(state):
+        #Keeps track of what has been found so far
+        stdout_output = state.posix.dumps(sys.stdout.fileno())
+        #Has the string "Good Job" been found? if so, print password
+        return 'Good Job.'.encode() in stdout_output
+    
+    def stop_hunting(state):
+        #Keeps track of what has been found so far, with the string "Try Again" 
+        #meaning to stop searching down this path
+        stdout_output = state.posix.dumps(sys.stdout.fileno())
+        return 'Try again.'.encode() in stdout_output  
+        
+    #Find is linked to the function "looks_good" and allows ANGR to keep searching
+    #if it believes it hasn't failed/finished, whereas the "stop_hunting" function
+    #will prevent it wasting more cycles on code we know to be a failure.
+    simulation.explore(find=looks_good,avoid=stop_hunting)
 
     #Checks whether ANGR has managed to find a solution
     if simulation.found:
